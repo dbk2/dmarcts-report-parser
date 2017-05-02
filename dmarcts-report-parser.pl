@@ -101,7 +101,7 @@ use PerlIO::gzip;
 use File::Basename ();
 
 # Define all possible configuration options.
-our ($debug, $delete_reports, $maxsize_xml, $compress_xml,
+our ($debug, $delete_reports, $maxsize_xml, $compress_xml, $compress_xml_maxsize,
 	$dbname, $dbuser, $dbpass, $dbhost,
 	$imapserver, $imapuser, $imappass, $imapssl, $imaptls, $delete_failed,
 	$imapmovefolder, $imapreadfolder, $imapopt);
@@ -581,23 +581,25 @@ sub storeXMLInDatabase {
 		}
 	}
 
-	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct, raw_xml)
-			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?,?)};
+	my $sql = qq{INSERT INTO report(serial,mindate,maxdate,domain,org,reportid,email,extra_contact_info,policy_adkim, policy_aspf, policy_p, policy_sp, policy_pct, raw_xml, gz_xml)
+			VALUES(NULL,FROM_UNIXTIME(?),FROM_UNIXTIME(?),?,?,?,?,?,?,?,?,?,?,?,?)};
 	my $storexml = $xml->{'raw_xml'};
+	my $gzxml;
 	if ($compress_xml) {
 		my $gzipdata;
 		if(!gzip(\$storexml => \$gzipdata)) {
 			print "Cannot add gzip XML for database ($GzipError). Skipped.\n";
-			$storexml = "";
+		} elsif ($compress_xml_maxsize > 0 && length($gzipdata) > $compress_xml_maxsize) {
+			print "Skipping storage of large gzip XML (".length($gzipdata)." bytes).\n";
 		} else {
-			$storexml = encode_base64($gzipdata, "");
+			$gzxml = $gzipdata;
 		}
 	}
 	if (length($storexml) > $maxsize_xml) {
 		print "Skipping storage of large XML (".length($storexml)." bytes).\n";
-		$storexml = "";
+		$storexml = undef;
 	}
-	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct, $storexml);
+	$dbh->do($sql, undef, $from, $to, $domain, $org, $id, $email, $extra, $policy_adkim, $policy_aspf, $policy_p, $policy_sp, $policy_pct, $storexml, $gzxml);
 	if ($dbh->errstr) {
 		print "Cannot add report to database (". $dbh->errstr ."). Skipped.\n";
 		return 0;
@@ -728,6 +730,7 @@ sub checkDatabase {
 				"policy_sp"		, "varchar(20) NULL",
 				"policy_pct"		, "tinyint unsigned",
 				"raw_xml"		, "mediumtext",
+				"gz_xml"		, "mediumblob",
 				],
 			additional_definitions 		=> "PRIMARY KEY (serial), UNIQUE KEY domain (domain,reportid)",
 			table_options			=> "",
