@@ -749,7 +749,7 @@ sub checkDatabase {
 				"identifier_hfrom"	, "varchar(255)",
 				],
 			additional_definitions 		=> "KEY serial (serial,ip), KEY serial6 (serial,ip6)",
-			table_options			=> "ENGINE=MyISAM",
+			table_options			=> "",
 			},
 	);
 
