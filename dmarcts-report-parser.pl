@@ -391,6 +391,7 @@ if ($reports_source == TS_IMAP) {
 sub getXMLFromMessage {
 	my $message = $_[0];
 	my $messagefile = $_[1];
+	$message =~ s/ContentType:/Content-Type:/g;
 
 	my $parser = new MIME::Parser;
 	$parser->output_dir("/tmp");
